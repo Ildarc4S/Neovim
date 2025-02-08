@@ -62,6 +62,7 @@ return {
               "--filter=-build/include_subdir",
               "--linelength=80",
             },
+            filetypes = { "cpp" },
           }),
           null_ls.builtins.formatting.clang_format.with({
             extra_args = { "-style=google" },
