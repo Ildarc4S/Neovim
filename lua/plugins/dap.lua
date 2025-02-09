@@ -9,66 +9,66 @@ return {
     config = function()
       local dap = require("dap")
       local dapui = require("dapui")
-
-      -- Настройка адаптера для C/C++
+      dap.defaults.fallback.force_external_terminal = true
       dap.adapters.cppdbg = {
         id = "cppdbg",
         type = "executable",
         command = vim.fn.stdpath("data") .. "/mason/bin/OpenDebugAD7",
       }
-      
-      dap.configurations.c = {
-        {
-          name = "Launch Debug (C)",
-          type = "cppdbg",
-          request = "launch",
-          program = function()
-            vim.cmd("silent! make debug")
-            return vim.fn.getcwd() .. "/debug"
-          end,
-
-          cwd = "${workspaceFolder}",
-          stopAtEntry = true, 
-          args = {},
-          environment = {},
-          externalConsole = false,
-          MIMode = "gdb",
-          miDebuggerPath = "/usr/bin/gdb", -- Убедитесь, что путь к gdb корректен
+      -- codelldb
+      dap.adapters.codelldb = {
+          type = "server",
+          port = "${port}",
+          executable = {
+              command = "/usr/bin/codelldb",
+              args = { "--port", "${port}" },
           },
-        }
+      }
       -- Конфигурация отладки
       dap.configurations.cpp = {
-        {
-          name = "Launch Debug",
-          type = "cppdbg",
-          request = "launch",
-          program = function()
-            -- Автоматически собираем и используем файл debug
-            vim.cmd("silent! make debug")
-            return vim.fn.getcwd() .. "/debug"
-          end,
-          cwd = "${workspaceFolder}",
-          stopAtEntry = false, -- Не останавливаться на входе
-          args = {},
-          environment = {},
-          externalConsole = false,
-          MIMode = "gdb",
-          miDebuggerPath = "/usr/bin/gdb", -- Убедитесь, что путь к gdb корректен
-          setupCommands = {
+      {
+        type = "codelldb",
+        request = "launch",
+        program = function ()
+            -- Compile and return exec name
+            local filetype = vim.bo.filetype
+            local filename = vim.fn.expand("%")
+            local basename = vim.fn.expand('%:t:r')
+            local makefile = os.execute("(ls | grep -i makefile)")
+            if makefile == "makefile" or makefile == "Makefile" then
+                os.execute("make debug")
+            else
+                if filetype == "c" then
+                    os.execute(string.format("gcc -g -o %s %s", basename, filename))
+                else
+                    os.execute(string.format("g++ -g -o %s %s", basename, filename))
+                end
+            end
+            return basename
+        end,
+        args = function ()
+            local argv = {}
+            arg = vim.fn.input(string.format("argv: "))
+            for a in string.gmatch(arg, "%S+") do
+                table.insert(argv, a)
+            end
+            vim.cmd('echo ""')
+            return argv
+        end,
+        cwd = "${workspaceFolder}",
+        stopAtEntry = true,
+        MIMode = "gdb",
+        miDebuggerPath = "/usr/bin/gdb",
+        setupCommands = {
             {
-              text = "-enable-pretty-printing",
-              description = "Enable pretty printing",
-              ignoreFailures = false,
+                text = "-enable-pretty-printing",
+                description = "enable pretty printing",
+                ignoreFailures = false,
             },
-            {
-              text = "-gdb-set follow-fork-mode child",
-              description = "Follow child process",
-              ignoreFailures = false,
-            },
-          },
-        },
-      }
-
+        }, 
+      }, 
+    }
+    dap.configurations.c = dap.configurations.cpp
       -- Настройка интерфейса DAP UI
       dapui.setup({
         layouts = {
